@@ -1,3 +1,6 @@
+mod hgd;
+
 fn main() {
-    println!("Hello, world!");
+
 }
+
