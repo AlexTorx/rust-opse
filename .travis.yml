@@ -1,0 +1,19 @@
+language: rust
+rust:
+  - stable
+  - beta
+  - nightly
+
+matrix:
+  allow_failures:
+    - rust: nightly
+  fast_finish: true
+  
+# Default install actions with Travis
+install:
+  - cargo build --verbose
+  
+# Default script actions with Travis
+script:
+  - cargo build --verbose
+  - cargo test --verbose
