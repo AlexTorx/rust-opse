@@ -1,5 +1,7 @@
 use std::cmp::Ordering;
+
 use std::f32::consts::PI;
+use std::f32::EPSILON;
 
 fn afc (index: &u32) -> f32 {
     // This function calculates logarithm of i factorial: ln(i!)
@@ -14,8 +16,8 @@ fn afc (index: &u32) -> f32 {
     // This value can be corrected with second or thrid order coefficients
     // when using Taylor's development to get more accuracy with lower values
     // of n.
-    match index.cmp(&0) {
-        Ordering::Less => 0.0, // TODO : necessary with unsigned int ??
+    match index.cmp(&1) {
+        Ordering::Less => 0.0,
         Ordering::Equal => 0.0,
         Ordering::Greater => {
             let index = *index as f32;
@@ -52,17 +54,17 @@ impl HGD {
         // This approximation can be improved using some below values as corrections
 
         let a: Vec<f32> = vec![
-            8.333333333333333e-02, -2.777777777777778e-03,
-            7.936507936507937e-04, -5.952380952380952e-04,
-            8.417508417508418e-04, -1.917526917526918e-03,
-            6.410256410256410e-03, -2.955065359477124e-02,
-            1.796443723688307e-01, -1.39243221690590e+00
+            8.333_333_333_333_333e-02, -2.777_777_777_777_778e-03,
+            7.936_507_936_507_937e-04, -5.952_380_952_380_952e-04,
+            8.417_508_417_508_418e-04, -1.917_526_917_526_918e-03,
+            6.410_256_410_256_410e-03, -2.955_065_359_477_124e-02,
+            1.796_443_723_688_307e-01, -1.392_432_216_905_900e+00
         ];
 
         let mut x0: f32 = x.clone();
         let mut n: u32 = 0;
 
-        if x == &1.0 || x == &2.0 {
+        if (x - 1.0).abs() < EPSILON || (x - 2.0).abs() < EPSILON {
             return 0.0
         }
 
@@ -75,15 +77,15 @@ impl HGD {
         let xp: f32 = 2.0 * PI;
         let mut gl0: f32 = a[9];
 
-        for k in (0..9).rev() {
+        for _k in (0..=8).rev() {
             gl0 *= x2;
-            gl0 += a[k];
+            gl0 += a[_k];
         }
 
         let mut gl: f32 = gl0 / x0 + 0.5 * xp.ln() + (x0 - 0.5) * x0.ln() - x0;
 
         if x <= &7.0 {
-            for k in 1..(n + 1) {
+            for _k in 1..=n {
                 gl -= (x0 - 1.0).ln();
                 x0 -= 1.0;
             }
@@ -99,25 +101,42 @@ mod tests {
     use super::afc;
     use super::HGD;
 
+    use std::f32::EPSILON;
+    use std::f32::consts::LN_2;
+
     #[test]
     fn test_afc () {
-        assert!(afc(&1).abs() < 0.001_f32);
-        assert!((afc(&4) - 3.178053_f32).abs() < 0.001_f32);
-        assert!((afc(&10) - 15.104412_f32).abs() < 0.001_f32);
-        assert!((afc(&15) - 27.899271_f32).abs() < 0.001_f32);
-        assert!((afc(&100) - 363.739375_f32).abs() < 0.001_f32);
+        // To test the result values, a few values were computed
+        // using other methods.
+        assert!(afc(&1).abs() < EPSILON);
+
+        // For low values (2 and 3), precision is not good enough to under
+        // EPSILON precision. just use 1e-4 as boundary
+        assert!((afc(&2) - LN_2).abs() < 1e-04_f32);
+        assert!((afc(&3) - 1.791_759).abs() < 1e-04_f32);
+
+        assert!((afc(&4) - 3.178_053).abs() < EPSILON);
+        assert!((afc(&10) - 15.104_412).abs() < EPSILON);
+        assert!((afc(&15) - 27.899_271).abs() < EPSILON);
+        assert!((afc(&100) - 363.739_375).abs() < EPSILON);
     }
 
     #[test]
     fn test_hgd_loggam () {
-        assert!((HGD::loggam(&0.5) - 0.572364).abs() < 0.001_f32);
-        assert_eq!(HGD::loggam(&1.0), 0.0);
-        assert_eq!(HGD::loggam(&2.0), 0.0);
-        assert!((HGD::loggam(&3.0) - 0.693147).abs() < 0.001_f32);
-        assert!((HGD::loggam(&3.5) - 1.200973).abs() < 0.001_f32);
-        assert!((HGD::loggam(&5.0) - 3.178053).abs() < 0.001_f32);
-        assert!((HGD::loggam(&15.0) - 25.191221).abs() < 0.001_f32);
-        assert!((HGD::loggam(&100.0) - 359.134205).abs() < 0.001_f32);
-        assert!((HGD::loggam(&1000.0) - 5905.220423).abs() < 0.001_f32);
+        // Low values do not have enough precision so take 1e-04 as boundary
+        assert!((HGD::loggam(&0.5) - 0.572_364).abs() < 1e-04_f32);
+        assert!((HGD::loggam(&3.0) - 0.693_147).abs() < 1e-04_f32);
+        assert!((HGD::loggam(&3.5) - 1.200_973).abs() < 1e-04_f32);
+
+        // These are precisely computed since their values are known
+        assert!(HGD::loggam(&1.0).abs() <  EPSILON);
+        assert!(HGD::loggam(&2.0).abs() < EPSILON);
+
+        // These values are large enough to be compared to std::f32::EPSILON
+        assert!((HGD::loggam(&5.0) - 3.178_053).abs() < EPSILON);
+        assert!((HGD::loggam(&15.0) - 25.191_221).abs() < 1e-04_f32);
+        assert!((HGD::loggam(&50.0) - 144.565_744).abs() < EPSILON);
+        assert!((HGD::loggam(&100.0) - 359.134_205).abs() < EPSILON);
+        assert!((HGD::loggam(&1000.0) - 5_905.220_423).abs() < EPSILON);
     }
 }
