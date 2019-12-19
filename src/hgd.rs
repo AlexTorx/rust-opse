@@ -77,9 +77,9 @@ impl HGD {
         let xp: f32 = 2.0 * PI;
         let mut gl0: f32 = a[9];
 
-        for _k in (0..=8).rev() {
+        for k in (0..=8).rev() {
             gl0 *= x2;
-            gl0 += a[_k];
+            gl0 += a[k];
         }
 
         let mut gl: f32 = gl0 / x0 + 0.5 * xp.ln() + (x0 - 0.5) * x0.ln() - x0;
