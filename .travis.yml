@@ -9,11 +9,16 @@ matrix:
     - rust: nightly
   fast_finish: true
   
-# Default install actions with Travis
 install:
+  # Build before performing more testing
   - cargo build --verbose
-  
-# Default script actions with Travis
+  # Install clippy for lint checks
+  - rustup component add clippy
+
 script:
+  # Check that building is successful
   - cargo build --verbose
+  # Lint checks
+  - cargo clippy --all-targets -- -W clippy::all
+  # Execute test functions
   - cargo test --verbose
