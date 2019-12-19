@@ -1,0 +1,24 @@
+language: rust
+rust:
+  - stable
+  - beta
+  - nightly
+
+matrix:
+  allow_failures:
+    - rust: nightly
+  fast_finish: true
+  
+install:
+  # Build before performing more testing
+  - cargo build --verbose
+  # Install clippy for lint checks
+  - rustup component add clippy
+
+script:
+  # Check that building is successful
+  - cargo build --verbose
+  # Lint checks
+  - cargo clippy --all-targets -- -W clippy::all
+  # Execute test functions
+  - cargo test --verbose
