@@ -8,6 +8,10 @@ matrix:
   allow_failures:
     - rust: nightly
   fast_finish: true
+
+env:
+  global:
+    - RUST_BACKTRACE=1
   
 install:
   # Build before performing more testing
