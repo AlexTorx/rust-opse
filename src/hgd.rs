@@ -148,14 +148,14 @@ mod tests {
         assert!((HGD::loggam(&0.5) - 0.572_364).abs() < 1e-04_f32);
         assert!((HGD::loggam(&3.0) - 0.693_147).abs() < 1e-04_f32);
         assert!((HGD::loggam(&3.5) - 1.200_973).abs() < 1e-04_f32);
+        assert!((HGD::loggam(&5.0) - 3.178_053).abs() < 1e-04_f32);
+        assert!((HGD::loggam(&15.0) - 25.191_221).abs() < 1e-04_f32);
 
         // These are precisely computed since their values are known
         assert!(HGD::loggam(&1.0).abs() <  EPSILON);
         assert!(HGD::loggam(&2.0).abs() < EPSILON);
 
         // These values are large enough to be compared to std::f32::EPSILON
-        assert!((HGD::loggam(&5.0) - 3.178_053).abs() < EPSILON);
-        assert!((HGD::loggam(&15.0) - 25.191_221).abs() < 1e-04_f32);
         assert!((HGD::loggam(&50.0) - 144.565_744).abs() < EPSILON);
         assert!((HGD::loggam(&100.0) - 359.134_205).abs() < EPSILON);
         assert!((HGD::loggam(&1000.0) - 5_905.220_423).abs() < EPSILON);
