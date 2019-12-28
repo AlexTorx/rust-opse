@@ -3,6 +3,24 @@ use std::cmp::Ordering;
 use std::f32::consts::PI;
 use std::f32::EPSILON;
 
+
+struct PRNG {
+    coins: [u8; 32]
+}
+
+impl PRNG {
+    fn numerify_coins (&self) -> u32 {
+        let mut out: u32 = 0;
+        for bit in self.coins.iter() {
+            out = (out << 1) | *bit as u32;
+        }
+        out
+    }
+    fn draw (&self) -> f64 {
+        (self.numerify_coins() as f64) / (2_u64.pow(32) - 1) as f64
+    }
+}
+
 fn afc (index: &u32) -> f32 {
     // This function calculates logarithm of i factorial: ln(i!)
     // using Stirling's approximation
@@ -100,9 +118,12 @@ mod tests {
 
     use super::afc;
     use super::HGD;
+    use super::PRNG;
 
     use std::f32::EPSILON;
     use std::f32::consts::LN_2;
+
+    use std::f64::EPSILON as EPSILON_64;
 
     #[test]
     fn test_afc () {
@@ -138,5 +159,59 @@ mod tests {
         assert!((HGD::loggam(&50.0) - 144.565_744).abs() < EPSILON);
         assert!((HGD::loggam(&100.0) - 359.134_205).abs() < EPSILON);
         assert!((HGD::loggam(&1000.0) - 5_905.220_423).abs() < EPSILON);
+    }
+
+    #[test]
+    fn test_prng_numerify_coins () {
+        let mut coins: [u8; 32] = [0; 32];
+        let prng = PRNG { coins: coins};
+        assert_eq!(prng.numerify_coins(), 0);
+
+        let mut coins: [u8; 32] = [0; 32];
+        coins[31] = 1;
+        let prng = PRNG { coins: coins};
+        assert_eq!(prng.numerify_coins(), 1);
+
+        let mut coins: [u8; 32] = [0; 32];
+        coins[30] = 1;
+        coins[31] = 1;
+        let prng = PRNG { coins: coins};
+        assert_eq!(prng.numerify_coins(), 3);
+
+        let mut coins: [u8; 32] = [0; 32];
+        coins[0] = 1;
+        let prng = PRNG { coins: coins};
+        assert_eq!(prng.numerify_coins(), 2_u32.pow(31));
+
+        let mut coins: [u8; 32] = [1; 32];
+        let prng = PRNG { coins: coins};
+        assert_eq!(prng.numerify_coins(), (2_u64.pow(32) - 1) as u32);
+    }
+
+    #[test]
+    fn test_prng_draw () {
+        let mut coins: [u8; 32] = [0; 32];
+        let prng = PRNG { coins: coins};
+        assert_eq!(prng.draw(), 0.0_f64);
+
+        let mut coins: [u8; 32] = [0; 32];
+        coins[31] = 1;
+        let prng = PRNG { coins: coins};
+        assert!((prng.draw() - 2.328_306_437e-10_f64).abs() < EPSILON_64);
+
+        let mut coins: [u8; 32] = [0; 32];
+        coins[30] = 1;
+        coins[31] = 1;
+        let prng = PRNG { coins: coins};
+        assert!((prng.draw() - 6.984_919_311e-10_f64).abs() < EPSILON_64);
+
+        let mut coins: [u8; 32] = [0; 32];
+        coins[0] = 1;
+        let prng = PRNG { coins: coins};
+        assert!((prng.draw() - 0.500_000_000_116_415_3_f64).abs() < EPSILON_64);
+
+        let mut coins: [u8; 32] = [1; 32];
+        let prng = PRNG { coins: coins};
+        assert_eq!(prng.draw(), 1.0_f64);
     }
 }
