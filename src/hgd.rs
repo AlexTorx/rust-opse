@@ -120,9 +120,9 @@ impl HGD {
         let mut z: f64 = 0.0;
 
         loop {
-            let x: u32 = prng.draw();
-            let y: u32 = prng.draw();
-            let w: f64 = d6 + d8*(y as f64 - 0.5)/(x as f64);
+            let x: f64 = prng.draw();
+            let y: f64 = prng.draw();
+            let w: f64 = d6 + d8*(y - 0.5_f64)/x;
 
             // fast rejection
             if w < EPSILON_64 || w >= d11 {
