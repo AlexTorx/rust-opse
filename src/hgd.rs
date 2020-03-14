@@ -1,7 +1,11 @@
 use std::cmp::Ordering;
+use std::cmp::min;
+use std::cmp::max;
 
-use std::f32::consts::PI;
-use std::f32::EPSILON;
+use std::f32::consts::PI as PI_32;
+
+use std::f64::consts::PI as PI_64;
+use std::f64::EPSILON as EPSILON_64;
 
 
 struct PRNG {
@@ -17,7 +21,7 @@ impl PRNG {
         out
     }
     fn draw (&self) -> f64 {
-        (self.numerify_coins() as f64) / (2_u64.pow(32) - 1) as f64
+        ((self.numerify_coins() as f64) / (2_u64.pow(32) - 1) as f64).round()
     }
 }
 
@@ -41,7 +45,7 @@ fn afc (index: &u32) -> f32 {
             let index = *index as f32;
             let frac_12: f32 = 1.0 / 12.0;
             let frac_360: f32 = 1.0 / 360.0;
-            let double_pi: f32 = 2.0 * PI;
+            let double_pi: f32 = 2.0 * PI_32;
             let frac_pi: f32 = 0.5 * double_pi.ln();
             (index + 0.5) * index.ln() - index + frac_12 / index - frac_360 / index / index / index + frac_pi
         }
@@ -58,7 +62,105 @@ struct HGD {
 }
 
 impl HGD {
-    fn loggam (x: &f32) -> f32 {
+    fn rhyper(kk: &u32, nn1: &u32, nn2: &u32, coins: &[u8; 32]) -> f64 {
+        let prng = PRNG { coins: *coins };
+
+        if kk > &10 {
+            HGD::hypergeometric_hrua(&prng, nn1, nn2, kk)
+        } else {
+            HGD::hypergeometric_hyp(&prng, nn1, nn2, kk)
+        }
+    }
+    fn hypergeometric_hyp(prng: &PRNG, good: &u32, bad: &u32, sample: &u32) -> f64 {
+        let d1: i32 = (*bad as i32 + *good as i32 - *sample as i32);
+        let d2: f64 = min(*good, *bad) as f64;
+
+        let mut y: f64 = d2.clone();
+        let mut k: u32 = sample.clone();
+
+        while y > 0.0 {
+            let u: f64 = prng.draw();
+
+            y -= (u + y/((d1 + k as i32) as f64)).floor();
+            k -= 1;
+
+            if k == 0 {
+                break;
+            }
+        }
+
+        let mut z: f64 = d2 - y;
+        if good > bad {
+            z = *sample as f64 - z;
+        }
+
+        z
+    }
+    fn hypergeometric_hrua(prng: &PRNG, good: &u32, bad: &u32, sample: &u32) -> f64 {
+        const D1: f64 = 1.715_527_769_921_413_5;
+        const D2: f64 = 0.898_916_162_058_898_8;
+
+        let mingoodbad: u32 = min(*good, *bad);
+        let popsize: u64 = *good as u64 + *bad as u64;
+        let maxgoodbad: u32 = max(*good, *bad);
+
+        let m: u32 = min(*sample as u64, popsize - *sample as u64) as u32;
+
+        let d4: f64 = mingoodbad as f64 / popsize as f64;
+        let d5: f64 = 1.0 - d4;
+        let d6: f64 = (m as f64)*d4 + 0.5;
+        let d7: f64 = ((popsize as f64 - m as f64)*(*sample as f64)*d4*d5/((popsize - 1) as f64) + 0.5).sqrt();
+        let d8: f64 = D1*d7 + D2;
+        let d9: f64 = (((m + 1)*(mingoodbad + 1)) as f64)/((popsize + 2) as f64);
+        let d10: f64 = HGD::loggam(d9 + 1.0) + HGD::loggam(mingoodbad as f64 - d9 + 1.0) + HGD::loggam(m as f64 - d9 + 1.0) + HGD::loggam(maxgoodbad as f64 - m as f64 + d9 +1.0);
+
+        // 16 because this is a 16 decimal digit precision in D1 and D2
+        let d11: f64 = (min(m, mingoodbad) as f64 + 1.0).min((d6 + 16.0*d7).round());
+
+        let mut z: f64 = 0.0;
+
+        loop {
+            let x: u32 = prng.draw();
+            let y: u32 = prng.draw();
+            let w: f64 = d6 + d8*(y as f64 - 0.5)/(x as f64);
+
+            // fast rejection
+            if w < EPSILON_64 || w >= d11 {
+                continue;
+            }
+
+            z = w.floor();
+            let t: f64 = d10 - HGD::loggam(z + 1.0) + HGD::loggam(mingoodbad as f64 - z + 1.0) + HGD::loggam(m as f64 - z + 1.0) + HGD::loggam(maxgoodbad as f64 - m as f64 + z + 1.0);
+
+            // fast-acceptance
+            if ((x as f64) * (4.0 - (x as f64)) - 3.0) <= t {
+                break;
+            }
+
+            // fast-rejection
+            if (x as f64) * ((x as f64) - t) >= 1.0 {
+                continue;
+            }
+
+            // acceptance
+            if 2.0 * (x as f64).ln() <= t {
+                break;
+            }
+        }
+
+        // Correction to HRUA* by Ivan Frohne
+        if *good > *bad {
+            z = m as f64 - z;
+        }
+
+        // Another fix to allow sample to exceed popsize/2
+        if m < *sample {
+            z;
+        }
+
+        z
+    }
+    fn loggam (x: f64) -> f64 {
         // This method is aimed at implementing log-gamma function computation
         // to support some of the distributions.
         //
@@ -71,7 +173,7 @@ impl HGD {
         //
         // This approximation can be improved using some below values as corrections
 
-        let a: Vec<f32> = vec![
+        let a: Vec<f64> = vec![
             8.333_333_333_333_333e-02, -2.777_777_777_777_778e-03,
             7.936_507_936_507_937e-04, -5.952_380_952_380_952e-04,
             8.417_508_417_508_418e-04, -1.917_526_917_526_918e-03,
@@ -79,30 +181,30 @@ impl HGD {
             1.796_443_723_688_307e-01, -1.392_432_216_905_900e+00
         ];
 
-        let mut x0: f32 = x.clone();
+        let mut x0: f64 = x.clone();
         let mut n: u32 = 0;
 
-        if (x - 1.0).abs() < EPSILON || (x - 2.0).abs() < EPSILON {
+        if (x - 1.0).abs() < EPSILON_64 || (x - 2.0).abs() < EPSILON_64 {
             return 0.0
         }
 
-        if x <= &7.0 {
-            n = 7 - (*x as u32);
-            x0 = x + (n as f32);
+        if x <= 7.0 {
+            n = 7 - (x as u32);
+            x0 = x + (n as f64);
         }
 
-        let x2: f32 = 1.0 / (x0 * x0);
-        let xp: f32 = 2.0 * PI;
-        let mut gl0: f32 = a[9];
+        let x2: f64 = 1.0 / (x0 * x0);
+        let xp: f64 = 2.0 * PI_64;
+        let mut gl0: f64 = a[9];
 
         for k in (0..=8).rev() {
             gl0 *= x2;
             gl0 += a[k];
         }
 
-        let mut gl: f32 = gl0 / x0 + 0.5 * xp.ln() + (x0 - 0.5) * x0.ln() - x0;
+        let mut gl: f64 = gl0 / x0 + 0.5 * xp.ln() + (x0 - 0.5) * x0.ln() - x0;
 
-        if x <= &7.0 {
+        if x <= 7.0 {
             for _k in 1..=n {
                 gl -= (x0 - 1.0).ln();
                 x0 -= 1.0;
@@ -140,25 +242,6 @@ mod tests {
         assert!((afc(&10) - 15.104_412).abs() < EPSILON);
         assert!((afc(&15) - 27.899_271).abs() < EPSILON);
         assert!((afc(&100) - 363.739_375).abs() < EPSILON);
-    }
-
-    #[test]
-    fn test_hgd_loggam () {
-        // Low values do not have enough precision so take 1e-04 as boundary
-        assert!((HGD::loggam(&0.5) - 0.572_364).abs() < 1e-04_f32);
-        assert!((HGD::loggam(&3.0) - 0.693_147).abs() < 1e-04_f32);
-        assert!((HGD::loggam(&3.5) - 1.200_973).abs() < 1e-04_f32);
-        assert!((HGD::loggam(&5.0) - 3.178_053).abs() < 1e-04_f32);
-        assert!((HGD::loggam(&15.0) - 25.191_221).abs() < 1e-04_f32);
-
-        // These are precisely computed since their values are known
-        assert!(HGD::loggam(&1.0).abs() <  EPSILON);
-        assert!(HGD::loggam(&2.0).abs() < EPSILON);
-
-        // These values are large enough to be compared to std::f32::EPSILON
-        assert!((HGD::loggam(&50.0) - 144.565_744).abs() < EPSILON);
-        assert!((HGD::loggam(&100.0) - 359.134_205).abs() < EPSILON);
-        assert!((HGD::loggam(&1000.0) - 5_905.220_423).abs() < EPSILON);
     }
 
     #[test]
@@ -213,5 +296,38 @@ mod tests {
         let mut coins: [u8; 32] = [1; 32];
         let prng = PRNG { coins: coins};
         assert_eq!(prng.draw(), 1.0_f64);
+    }
+
+    #[test]
+    fn test_hgd_hypergeometric_hyp () {
+        let mut coins: [u8; 32] = [1; 32];
+        let prng = PRNG { coins: coins};
+        assert_eq!(HGD::hypergeometric_hyp(&prng, &3, &2, &4), 2.0);
+
+        let mut coins: [u8; 32] = [1; 32];
+        let prng = PRNG { coins: coins};
+        assert_eq!(HGD::hypergeometric_hyp(&prng, &19, &4, &56), 52.0);
+    }
+
+    #[test]
+    fn test_hgd_loggam () {
+        // Pre-calculated values where calculated using online calculator
+        // at keisan.casio.com/exec/system/1180573442
+
+        // Low values do not have enough precision so take 1e-04 as boundary
+        assert!((HGD::loggam(0.5) - 0.572_364).abs() < 1e-04_f64);
+        assert!((HGD::loggam(3.0) - 0.693_147).abs() < 1e-04_f64);
+        assert!((HGD::loggam(3.5) - 1.200_973).abs() < 1e-04_f64);
+        assert!((HGD::loggam(5.0) - 3.178_053).abs() < 1e-04_f64);
+        assert!((HGD::loggam(15.0) - 25.191_221).abs() < 1e-04_f64);
+        assert!((HGD::loggam(50.0) - 144.565_744).abs() < 1e-06_f64);
+        assert!((HGD::loggam(100.0) - 359.134_205_369_575).abs() < 1e-09_f64);
+
+        // These are precisely computed since their values are known
+        assert!(HGD::loggam(1.0).abs() <  EPSILON_64);
+        assert!(HGD::loggam(2.0).abs() < EPSILON_64);
+
+        // These values are large enough to be compared to std::f32::EPSILON
+        assert!((HGD::loggam(1000.0) - 5_905.220_423_209_181_211).abs() < EPSILON_64);
     }
 }
