@@ -21,7 +21,7 @@ impl PRNG {
         out
     }
     fn draw (&self) -> f64 {
-        ((self.numerify_coins() as f64) / (2_u64.pow(32) - 1) as f64).round()
+        (self.numerify_coins() as f64) / (2_u64.pow(32) - 1) as f64
     }
 }
 
@@ -72,7 +72,7 @@ impl HGD {
         }
     }
     fn hypergeometric_hyp(prng: &PRNG, good: &u32, bad: &u32, sample: &u32) -> f64 {
-        let d1: i32 = (*bad as i32 + *good as i32 - *sample as i32);
+        let d1: i32 = *bad as i32 + *good as i32 - *sample as i32;
         let d2: f64 = min(*good, *bad) as f64;
 
         let mut y: f64 = d2.clone();
@@ -107,8 +107,8 @@ impl HGD {
         let m: u32 = min(*sample as u64, popsize - *sample as u64) as u32;
 
         let d4: f64 = mingoodbad as f64 / popsize as f64;
-        let d5: f64 = 1.0 - d4;
-        let d6: f64 = (m as f64)*d4 + 0.5;
+        let d5: f64 = 1.0_f64 - d4;
+        let d6: f64 = (m as f64)*d4 + 0.5_f64;
         let d7: f64 = ((popsize as f64 - m as f64)*(*sample as f64)*d4*d5/((popsize - 1) as f64) + 0.5).sqrt();
         let d8: f64 = D1*d7 + D2;
         let d9: f64 = (((m + 1)*(mingoodbad + 1)) as f64)/((popsize + 2) as f64);
@@ -129,8 +129,8 @@ impl HGD {
                 continue;
             }
 
-            z = w.floor();
-            let t: f64 = d10 - HGD::loggam(z + 1.0) + HGD::loggam(mingoodbad as f64 - z + 1.0) + HGD::loggam(m as f64 - z + 1.0) + HGD::loggam(maxgoodbad as f64 - m as f64 + z + 1.0);
+            z = w.floor() as f64;
+            let t: f64 = d10 - (HGD::loggam(z + 1.0) + HGD::loggam((mingoodbad as f64) - z + 1.0) + HGD::loggam((m as f64) - z + 1.0) + HGD::loggam((maxgoodbad as f64) - (m as f64) + z + 1.0));
 
             // fast-acceptance
             if ((x as f64) * (4.0 - (x as f64)) - 3.0) <= t {
@@ -155,7 +155,7 @@ impl HGD {
 
         // Another fix to allow sample to exceed popsize/2
         if m < *sample {
-            z;
+            z = *good as f64 - z;
         }
 
         z
@@ -246,7 +246,7 @@ mod tests {
 
     #[test]
     fn test_prng_numerify_coins () {
-        let mut coins: [u8; 32] = [0; 32];
+        let coins: [u8; 32] = [0; 32];
         let prng = PRNG { coins: coins};
         assert_eq!(prng.numerify_coins(), 0);
 
@@ -266,14 +266,14 @@ mod tests {
         let prng = PRNG { coins: coins};
         assert_eq!(prng.numerify_coins(), 2_u32.pow(31));
 
-        let mut coins: [u8; 32] = [1; 32];
+        let coins: [u8; 32] = [1; 32];
         let prng = PRNG { coins: coins};
         assert_eq!(prng.numerify_coins(), (2_u64.pow(32) - 1) as u32);
     }
 
     #[test]
     fn test_prng_draw () {
-        let mut coins: [u8; 32] = [0; 32];
+        let coins: [u8; 32] = [0; 32];
         let prng = PRNG { coins: coins};
         assert_eq!(prng.draw(), 0.0_f64);
 
@@ -293,18 +293,18 @@ mod tests {
         let prng = PRNG { coins: coins};
         assert!((prng.draw() - 0.500_000_000_116_415_3_f64).abs() < EPSILON_64);
 
-        let mut coins: [u8; 32] = [1; 32];
+        let coins: [u8; 32] = [1; 32];
         let prng = PRNG { coins: coins};
         assert_eq!(prng.draw(), 1.0_f64);
     }
 
     #[test]
     fn test_hgd_hypergeometric_hyp () {
-        let mut coins: [u8; 32] = [1; 32];
+        let coins: [u8; 32] = [1; 32];
         let prng = PRNG { coins: coins};
         assert_eq!(HGD::hypergeometric_hyp(&prng, &3, &2, &4), 2.0);
 
-        let mut coins: [u8; 32] = [1; 32];
+        let coins: [u8; 32] = [1; 32];
         let prng = PRNG { coins: coins};
         assert_eq!(HGD::hypergeometric_hyp(&prng, &19, &4, &56), 52.0);
     }
@@ -329,5 +329,21 @@ mod tests {
 
         // These values are large enough to be compared to std::f32::EPSILON
         assert!((HGD::loggam(1000.0) - 5_905.220_423_209_181_211).abs() < EPSILON_64);
+    }
+
+    #[test]
+    fn test_hypergeometric_hrua () {
+        let mut coins: [u8; 32] = [0; 32];
+        coins[0] = 1;
+        coins[1] = 1;
+        let prng = PRNG { coins: coins};
+        assert_eq!(HGD::hypergeometric_hrua(&prng, &20, &20, &25), 11.0);
+
+        let mut coins: [u8; 32] = [0; 32];
+        coins[1] = 1;
+        coins[2] = 1;
+        coins[3] = 1;
+        let prng = PRNG { coins: coins};
+        assert_eq!(HGD::hypergeometric_hrua(&prng, &50, &111, &67), 20.0);
     }
 }
