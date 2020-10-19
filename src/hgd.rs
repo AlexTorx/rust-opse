@@ -1,6 +1,4 @@
 use std::cmp::Ordering;
-use std::cmp::min;
-use std::cmp::max;
 
 use std::f32::consts::PI as PI_32;
 
@@ -52,7 +50,7 @@ fn afc (index: &u32) -> f32 {
     }
 }
 
-struct HGD {
+pub struct HGD {
     // Random variates from the hypergeometric distribution
     //
     // Returns the number of white balls drawn when kk balls are drawn
@@ -62,29 +60,30 @@ struct HGD {
 }
 
 impl HGD {
-    fn rhyper(kk: &u32, nn1: &u32, nn2: &u32, coins: &[u8; 32]) -> f64 {
+    pub fn rhyper(kk: &f64, nn1: &f64, nn2: &f64, coins: &[u8; 32]) -> f64 {
         let prng = PRNG { coins: *coins };
 
-        if kk > &10 {
+        if kk > &10_f64 {
             HGD::hypergeometric_hrua(&prng, nn1, nn2, kk)
         } else {
             HGD::hypergeometric_hyp(&prng, nn1, nn2, kk)
         }
     }
-    fn hypergeometric_hyp(prng: &PRNG, good: &u32, bad: &u32, sample: &u32) -> f64 {
-        let d1: i32 = *bad as i32 + *good as i32 - *sample as i32;
-        let d2: f64 = min(*good, *bad) as f64;
+    fn hypergeometric_hyp(prng: &PRNG, good: &f64, bad: &f64, sample: &f64) -> f64 {
+        let d1: f64 = *bad + *good - *sample;
+
+        let d2: f64 = (*good).min(*bad);
 
         let mut y: f64 = d2.clone();
-        let mut k: u32 = sample.clone();
+        let mut k: f64 = sample.clone();
 
         while y > 0.0 {
             let u: f64 = prng.draw();
 
-            y -= (u + y/((d1 + k as i32) as f64)).floor();
-            k -= 1;
+            y -= (u + y/(d1 + k)).floor();
+            k -= 1_f64;
 
-            if k == 0 {
+            if k == 0_f64 {
                 break;
             }
         }
@@ -96,66 +95,67 @@ impl HGD {
 
         z
     }
-    fn hypergeometric_hrua(prng: &PRNG, good: &u32, bad: &u32, sample: &u32) -> f64 {
+    fn hypergeometric_hrua(prng: &PRNG, good: &f64, bad: &f64, sample: &f64) -> f64 {
         const D1: f64 = 1.715_527_769_921_413_5;
         const D2: f64 = 0.898_916_162_058_898_8;
 
-        let mingoodbad: u32 = min(*good, *bad);
-        let popsize: i64 = *good as i64 + *bad as i64;
-        let maxgoodbad: u32 = max(*good, *bad);
+        let mingoodbad: f64 = (*good).min(*bad);
+        let maxgoodbad: f64 = (*good).max(*bad);
 
-        let m: i64 = min(*sample as i64, popsize - *sample as i64) as i64;
+        let popsize: f64 = *good + *bad;
 
-        let d4: f64 = mingoodbad as f64 / popsize as f64;
+        let m: f64 = (*sample).min(popsize - *sample);
+
+        let d4: f64 = mingoodbad / popsize;
         let d5: f64 = 1.0_f64 - d4;
-        let d6: f64 = (m as f64)*d4 + 0.5_f64;
-        let d7: f64 = ((popsize as f64 - m as f64)*(*sample as f64)*d4*d5/((popsize - 1) as f64) + 0.5).sqrt();
-        let d8: f64 = D1*d7 + D2;
-        let d9: f64 = (((m + 1)*(mingoodbad as i64 + 1)) as f64)/((popsize + 2) as f64);
-        let d10: f64 = HGD::loggam(d9 + 1.0) + HGD::loggam(mingoodbad as f64 - d9 + 1.0) + HGD::loggam(m as f64 - d9 + 1.0) + HGD::loggam(maxgoodbad as f64 - m as f64 + d9 +1.0);
+        let d6: f64 = m * d4 + 0.5_f64;
+        let d7: f64 = ((popsize - m) * *sample * d4 * d5 /(popsize - 1_f64) + 0.5).sqrt();
+        let d8: f64 = D1 * d7 + D2;
+        let d9: f64 = (m + 1_f64) * (mingoodbad + 1_f64) /(popsize + 2_f64);
+        let d10: f64 = HGD::loggam(d9 + 1_f64) + HGD::loggam(mingoodbad - d9 + 1_f64) + HGD::loggam(m - d9 + 1_f64) + HGD::loggam(maxgoodbad - m + d9 + 1_f64);
 
         // 16 because this is a 16 decimal digit precision in D1 and D2
-        let d11: f64 = (min(m, mingoodbad as i64) as f64 + 1.0).min((d6 + 16.0*d7).round());
+        let d11: f64 = (m.min(mingoodbad) + 1.0).min((d6 + 16_f64 * d7).round());
 
         let mut z: f64 = 0.0;
 
         loop {
             let x: f64 = prng.draw();
             let y: f64 = prng.draw();
-            let w: f64 = d6 + d8*(y - 0.5_f64)/x;
+            let w: f64 = d6 + d8 * (y - 0.5_f64) / x;
 
             // fast rejection
             if w < EPSILON_64 || w >= d11 {
                 continue;
             }
 
-            z = w.floor() as f64;
-            let t: f64 = d10 - (HGD::loggam(z + 1.0) + HGD::loggam((mingoodbad as f64) - z + 1.0) + HGD::loggam((m as f64) - z + 1.0) + HGD::loggam((maxgoodbad as f64) - (m as f64) + z + 1.0));
+            z = w.floor();
+            let t: f64 = d10 - (HGD::loggam(z + 1.0) + HGD::loggam(mingoodbad - z + 1.0) + HGD::loggam(m - z + 1.0) + HGD::loggam(maxgoodbad - m + z + 1_f64));
 
             // fast-acceptance
-            if ((x as f64) * (4.0 - (x as f64)) - 3.0) <= t {
+            if x * (4.0 - x) - 3.0 <= t {
                 break;
             }
 
             // fast-rejection
-            if (x as f64) * ((x as f64) - t) >= 1.0 {
+            if x * (x - t) >= 1.0 {
                 continue;
             }
 
             // acceptance
-            if 2.0 * (x as f64).ln() <= t {
+            if 2.0 * x.ln() <= t {
                 break;
             }
         }
 
         // Correction to HRUA* by Ivan Frohne
         if *good > *bad {
-            z = m as f64 - z;
+            z = m - z;
         }
 
         // Another fix to allow sample to exceed popsize/2
-        if m < *sample as i64 {
-            z = *good as f64 - z;
+        if m < *sample {
+            z = *good - z;
         }
 
         z
@@ -329,21 +329,21 @@ mod tests {
         let prng = PRNG {coins : coins };
 
         for i in 1..=10 {
-            assert_eq!(HGD::rhyper(&i, &2, &3, &coins), HGD::hypergeometric_hyp(&prng, &2, &3, &i));
+            assert_eq!(HGD::rhyper(&(i as f64), &2_f64, &3_f64, &coins), HGD::hypergeometric_hyp(&prng, &2_f64, &3_f64, &(i as f64)));
         }
 
-        assert_eq!(HGD::rhyper(&11, &20, &20, &coins), HGD::hypergeometric_hrua(&prng, &20, &20, &11));
+        assert_eq!(HGD::rhyper(&11_f64, &20_f64, &20_f64, &coins), HGD::hypergeometric_hrua(&prng, &20_f64, &20_f64, &11_f64));
     }
 
     #[test]
     fn test_hgd_hypergeometric_hyp () {
         let coins: [u8; 32] = [1; 32];
         let prng = PRNG { coins: coins};
-        assert_eq!(HGD::hypergeometric_hyp(&prng, &3, &2, &4), 2.0);
+        assert_eq!(HGD::hypergeometric_hyp(&prng, &3_f64, &2_f64, &4_f64), 2.0);
 
         let coins: [u8; 32] = [1; 32];
         let prng = PRNG { coins: coins};
-        assert_eq!(HGD::hypergeometric_hyp(&prng, &19, &4, &56), 52.0);
+        assert_eq!(HGD::hypergeometric_hyp(&prng, &19_f64, &4_f64, &56_f64), 52.0);
     }
 
     #[test]
@@ -352,13 +352,13 @@ mod tests {
         coins[0] = 1;
         coins[1] = 1;
         let prng = PRNG { coins: coins};
-        assert_eq!(HGD::hypergeometric_hrua(&prng, &20, &20, &25), 11.0);
+        assert_eq!(HGD::hypergeometric_hrua(&prng, &20_f64, &20_f64, &25_f64), 11.0);
 
         let mut coins: [u8; 32] = [0; 32];
         coins[1] = 1;
         coins[2] = 1;
         coins[3] = 1;
         let prng = PRNG { coins: coins};
-        assert_eq!(HGD::hypergeometric_hrua(&prng, &50, &111, &67), 20.0);
+        assert_eq!(HGD::hypergeometric_hrua(&prng, &50_f64, &111_f64, &67_f64), 20.0);
     }
 }
