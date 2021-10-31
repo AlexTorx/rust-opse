@@ -5,15 +5,20 @@ use std::f32::consts::PI as PI_32;
 use std::f64::consts::PI as PI_64;
 use std::f64::EPSILON as EPSILON_64;
 
+#[cfg(not(test))]
+use log::trace;
+ 
+#[cfg(test)]
+use std::println as trace;
 
 struct PRNG {
-    coins: [u8; 32]
+    coins: [u8; 128]
 }
 
 impl PRNG {
     fn numerify_coins (&self) -> u32 {
         let mut out: u32 = 0;
-        for bit in self.coins.iter() {
+        for bit in self.coins[..32].iter() {
             out = (out << 1) | *bit as u32;
         }
         out
@@ -60,7 +65,10 @@ pub struct HGD {
 }
 
 impl HGD {
-    pub fn rhyper(kk: &f64, nn1: &f64, nn2: &f64, coins: &[u8; 32]) -> f64 {
+    pub fn rhyper(kk: &f64, nn1: &f64, nn2: &f64, coins: &[u8; 128]) -> f64 {
+
+        trace!("HGD::rhyper");
+
         let prng = PRNG { coins: *coins };
 
         if kk > &10_f64 {
@@ -70,6 +78,9 @@ impl HGD {
         }
     }
     fn hypergeometric_hyp(prng: &PRNG, good: &f64, bad: &f64, sample: &f64) -> f64 {
+
+        trace!("HGD::hypergeometric_hyp");
+
         let d1: f64 = *bad + *good - *sample;
 
         let d2: f64 = (*good).min(*bad);
@@ -78,6 +89,7 @@ impl HGD {
         let mut k: f64 = sample.clone();
 
         while y > 0.0 {
+
             let u: f64 = prng.draw();
 
             y -= (u + y/(d1 + k)).floor();
@@ -96,20 +108,36 @@ impl HGD {
         z
     }
     fn hypergeometric_hrua(prng: &PRNG, good: &f64, bad: &f64, sample: &f64) -> f64 {
+
+        trace!("HGD::hypergeometric_hrua");
+
+        trace!("HGD::hypergeometric_hrua - prng.coins : {:?}", prng.coins);
+
+        trace!("HGD::hypergeometric_hrua - good : {:?}", good);
+        trace!("HGD::hypergeometric_hrua - bad : {:?}", bad);
+        trace!("HGD::hypergeometric_hrua - sample : {:?}", sample);
+
         const D1: f64 = 1.715_527_769_921_413_5;
         const D2: f64 = 0.898_916_162_058_898_8;
 
         let mingoodbad: f64 = (*good).min(*bad);
         let maxgoodbad: f64 = (*good).max(*bad);
 
+        trace!("HGD::hypergeometric_hrua - mingoodbad : {:?}", mingoodbad);
+        trace!("HGD::hypergeometric_hrua - maxgoodbad : {:?}", maxgoodbad);
+
         let popsize: f64 = *good + *bad;
 
+        trace!("HGD::hypergeometric_hrua - popsize : {:?}", popsize);
+
         let m: f64 = (*sample).min(popsize - *sample);
+
+        trace!("HGD::hypergeometric_hrua - m : {:?}", m);
 
         let d4: f64 = mingoodbad / popsize;
         let d5: f64 = 1.0_f64 - d4;
         let d6: f64 = m * d4 + 0.5_f64;
-        let d7: f64 = ((popsize - m) * *sample * d4 * d5 /(popsize - 1_f64) + 0.5).sqrt();
+        let d7: f64 = ((popsize - m) * (*sample) * d4 * d5 / (popsize - 1_f64) + 0.5).sqrt();
         let d8: f64 = D1 * d7 + D2;
         let d9: f64 = (m + 1_f64) * (mingoodbad + 1_f64) /(popsize + 2_f64);
         let d10: f64 = HGD::loggam(d9 + 1_f64) + HGD::loggam(mingoodbad - d9 + 1_f64) + HGD::loggam(m - d9 + 1_f64) + HGD::loggam(maxgoodbad - m + d9 + 1_f64);
@@ -117,12 +145,34 @@ impl HGD {
         // 16 because this is a 16 decimal digit precision in D1 and D2
         let d11: f64 = (m.min(mingoodbad) + 1.0).min((d6 + 16_f64 * d7).round());
 
+        trace!("HGD::hypergeometric_hrua - d4 : {:?}", d4);
+        trace!("HGD::hypergeometric_hrua - d5 : {:?}", d5);
+        trace!("HGD::hypergeometric_hrua - d6 : {:?}", d6);
+        trace!("HGD::hypergeometric_hrua - d7 : {:?}", d7);
+        trace!("HGD::hypergeometric_hrua - d8 : {:?}", d8);
+        trace!("HGD::hypergeometric_hrua - d9 : {:?}", d9);
+        trace!("HGD::hypergeometric_hrua - d10 : {:?}", d10);
+        trace!("HGD::hypergeometric_hrua - d11 : {:?}", d11);
+
         let mut z: f64 = 0.0;
 
+        let mut count: i32 = 0;
+
         loop {
+
+            count += 1;
+
+            if count == 10 {
+                panic!();
+            }
+
             let x: f64 = prng.draw();
             let y: f64 = prng.draw();
             let w: f64 = d6 + d8 * (y - 0.5_f64) / x;
+
+            trace!("HGD::hypergeometric_hrua - x : {:?}", x);
+            trace!("HGD::hypergeometric_hrua - y : {:?}", y);
+            trace!("HGD::hypergeometric_hrua - w : {:?}", w);
 
             // fast rejection
             if w < EPSILON_64 || w >= d11 {
@@ -246,54 +296,54 @@ mod tests {
 
     #[test]
     fn test_prng_numerify_coins () {
-        let coins: [u8; 32] = [0; 32];
+        let coins: [u8; 128] = [0; 128];
         let prng = PRNG { coins: coins};
         assert_eq!(prng.numerify_coins(), 0);
 
-        let mut coins: [u8; 32] = [0; 32];
-        coins[31] = 1;
+        let mut coins: [u8; 128] = [0; 128];
+        coins[127] = 1;
         let prng = PRNG { coins: coins};
-        assert_eq!(prng.numerify_coins(), 1);
+        assert_eq!(prng.numerify_coins(), 0);
 
-        let mut coins: [u8; 32] = [0; 32];
-        coins[30] = 1;
-        coins[31] = 1;
+        let mut coins: [u8; 128] = [0; 128];
+        coins[126] = 1;
+        coins[127] = 1;
         let prng = PRNG { coins: coins};
-        assert_eq!(prng.numerify_coins(), 3);
+        assert_eq!(prng.numerify_coins(), 0);
 
-        let mut coins: [u8; 32] = [0; 32];
+        let mut coins: [u8; 128] = [0; 128];
         coins[0] = 1;
         let prng = PRNG { coins: coins};
         assert_eq!(prng.numerify_coins(), 2_u32.pow(31));
 
-        let coins: [u8; 32] = [1; 32];
+        let coins: [u8; 128] = [1; 128];
         let prng = PRNG { coins: coins};
         assert_eq!(prng.numerify_coins(), (2_u64.pow(32) - 1) as u32);
     }
 
     #[test]
     fn test_prng_draw () {
-        let coins: [u8; 32] = [0; 32];
+        let coins: [u8; 128] = [0; 128];
         let prng = PRNG { coins: coins};
         assert_eq!(prng.draw(), 0.0_f64);
 
-        let mut coins: [u8; 32] = [0; 32];
-        coins[31] = 1;
+        let mut coins: [u8; 128] = [0; 128];
+        coins[127] = 1;
         let prng = PRNG { coins: coins};
-        assert!((prng.draw() - 2.328_306_437e-10_f64).abs() < EPSILON_64);
+        assert_eq!(prng.draw(), 0.0_f64);
 
-        let mut coins: [u8; 32] = [0; 32];
-        coins[30] = 1;
-        coins[31] = 1;
+        let mut coins: [u8; 128] = [0; 128];
+        coins[126] = 1;
+        coins[127] = 1;
         let prng = PRNG { coins: coins};
-        assert!((prng.draw() - 6.984_919_311e-10_f64).abs() < EPSILON_64);
+        assert_eq!(prng.draw(), 0.0_f64);
 
-        let mut coins: [u8; 32] = [0; 32];
+        let mut coins: [u8; 128] = [0; 128];
         coins[0] = 1;
         let prng = PRNG { coins: coins};
         assert!((prng.draw() - 0.500_000_000_116_415_3_f64).abs() < EPSILON_64);
 
-        let coins: [u8; 32] = [1; 32];
+        let coins: [u8; 128] = [1; 128];
         let prng = PRNG { coins: coins};
         assert_eq!(prng.draw(), 1.0_f64);
     }
@@ -322,7 +372,7 @@ mod tests {
 
     #[test]
     fn test_rhyper () {
-        let mut coins = [0; 32];
+        let mut coins = [0; 128];
         coins[0] = 1;
         coins[1] = 1;
 
@@ -337,24 +387,24 @@ mod tests {
 
     #[test]
     fn test_hgd_hypergeometric_hyp () {
-        let coins: [u8; 32] = [1; 32];
-        let prng = PRNG { coins: coins};
+        let coins: [u8; 128] = [1; 128];
+        let prng = PRNG { coins: coins };
         assert_eq!(HGD::hypergeometric_hyp(&prng, &3_f64, &2_f64, &4_f64), 2.0);
 
-        let coins: [u8; 32] = [1; 32];
+        let coins: [u8; 128] = [1; 128];
         let prng = PRNG { coins: coins};
         assert_eq!(HGD::hypergeometric_hyp(&prng, &19_f64, &4_f64, &56_f64), 52.0);
     }
 
     #[test]
     fn test_hypergeometric_hrua () {
-        let mut coins: [u8; 32] = [0; 32];
+        let mut coins: [u8; 128] = [0; 128];
         coins[0] = 1;
         coins[1] = 1;
         let prng = PRNG { coins: coins};
         assert_eq!(HGD::hypergeometric_hrua(&prng, &20_f64, &20_f64, &25_f64), 11.0);
 
-        let mut coins: [u8; 32] = [0; 32];
+        let mut coins: [u8; 128] = [0; 128];
         coins[1] = 1;
         coins[2] = 1;
         coins[3] = 1;

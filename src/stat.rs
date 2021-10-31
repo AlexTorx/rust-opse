@@ -1,10 +1,18 @@
 use super::hgd::HGD;
 use super::ope::ValueRange;
 
-fn sample_hgd(in_range: &ValueRange, out_range: &ValueRange, nsample: &f64, seed_coins: &[u8; 32]) -> f64 {
+#[cfg(not(test))]
+use log::trace;
+ 
+#[cfg(test)]
+use std::println as trace;
+
+pub fn sample_hgd(in_range: &ValueRange, out_range: &ValueRange, nsample: &f64, seed_coins: &[u8; 128]) -> f64 {
 
     // Get a sample from the hypergeometric distribution, using the provided bit list (seed coins)
     // as a source of randomness.
+    
+    trace!("sample_hgd");
 
     let in_size: f64 = in_range.size();
     let out_size: f64 = out_range.size();
@@ -17,7 +25,7 @@ fn sample_hgd(in_range: &ValueRange, out_range: &ValueRange, nsample: &f64, seed
         panic!("out_range must have a positive size. Current size is : {:?}", out_size);
     }
 
-    if !(in_range.contains(nsample)) {
+    if !(out_range.contains(nsample)) {
         panic!("nsample must be in in_range. Current nsample is {:?}, current in_range is {:?}.", nsample, in_range);
     }
 
@@ -41,7 +49,7 @@ fn sample_hgd(in_range: &ValueRange, out_range: &ValueRange, nsample: &f64, seed
     }
 }
 
-fn sample_uniform(in_range: &ValueRange, seed_coins: &[u8; 32]) -> f64 {
+pub fn sample_uniform(in_range: &ValueRange, seed_coins: &[u8; 128]) -> f64 {
 
     // Uniformly select a number from the range using the provided bit list (seed_coins)
     // as a source of randomness.
@@ -58,7 +66,7 @@ fn sample_uniform(in_range: &ValueRange, seed_coins: &[u8; 32]) -> f64 {
         let mid: f64 = (current_range.start + current_range.end).div_euclid(2_f64); 
 
         // Check if bit_counter exceeds seed_coins length (32)
-        if bit_counter > 31 {
+        if bit_counter > 128 {
             panic!("Not enough coins.");
         }
 
@@ -91,13 +99,13 @@ mod tests {
 
         let mut in_range: ValueRange = ValueRange::new(1_f64, 100_f64);
         let mut out_range: ValueRange = ValueRange::new(1_f64, 300_f64);
-        let mut seed_coins: [u8; 32] = [1; 32];
+        let mut seed_coins: [u8; 128] = [1; 128];
 
         assert_eq!(sample_hgd(&in_range, &out_range, &10_f64, &seed_coins), 10_f64);
         assert_eq!(sample_hgd(&in_range, &out_range, &2_f64, &seed_coins), 2_f64);
 
-        seed_coins = [0; 32];
-        seed_coins[31] = 1;
+        seed_coins = [0; 128];
+        seed_coins[127] = 1;
 
         assert_eq!(sample_hgd(&in_range, &out_range, &10_f64, &seed_coins), 1_f64);
         assert_eq!(sample_hgd(&in_range, &out_range, &8_f64, &seed_coins), 1_f64);
@@ -105,7 +113,7 @@ mod tests {
         in_range = ValueRange::new(-1_000_f64, 100_000_f64);
         out_range = ValueRange::new(-100_000_f64, 1_000_000_f64);
         
-        seed_coins = [0; 32];
+        seed_coins = [0; 128];
         seed_coins[0] = 1_u8;
         seed_coins[2] = 1_u8;
         seed_coins[3] = 1_u8;
@@ -117,12 +125,12 @@ mod tests {
     fn test_sample_uniform () {
 
         let mut in_range: ValueRange = ValueRange::new(1_f64, 1000_f64);
-        let mut seed_coins: [u8; 32] = [1; 32];
+        let mut seed_coins: [u8; 128] = [1; 128];
 
         assert_eq!(sample_uniform(&in_range, &seed_coins), 1000_f64);
 
         in_range = ValueRange::new(-1000_f64, 100_000_f64);
-        seed_coins = [0; 32];
+        seed_coins = [0; 128];
         seed_coins[0] = 1_u8;
         seed_coins[2] = 1_u8;
         seed_coins[3] = 1_u8;
